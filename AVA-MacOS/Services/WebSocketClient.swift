@@ -41,10 +41,12 @@ actor WebSocketClient {
     // Dependencies
     private let authStore: AuthStore
     private let onStateChange: @Sendable (ConnectionState) -> Void
+    private let onFatalClose: @Sendable () -> Void
 
-    init(authStore: AuthStore, onStateChange: @escaping @Sendable (ConnectionState) -> Void) {
+    init(authStore: AuthStore, onStateChange: @escaping @Sendable (ConnectionState) -> Void, onFatalClose: @escaping @Sendable () -> Void = {}) {
         self.authStore = authStore
         self.onStateChange = onStateChange
+        self.onFatalClose = onFatalClose
 
         let (stream, continuation) = AsyncStream<InboundFrame>.makeStream()
         self.eventStream = stream
@@ -186,10 +188,21 @@ actor WebSocketClient {
     private func handleDisconnect() async {
         guard !isIntentionalDisconnect else { return }
 
+        // Check for fatal close codes (auth expired or unpaired)
+        let closeCode = socket?.closeCode ?? .invalid
+        let isFatal = closeCode == .init(rawValue: 4001) || closeCode == .init(rawValue: 4003)
+
         pingTask?.cancel()
         receiveTask?.cancel()
         socket?.cancel(with: .goingAway, reason: nil)
         socket = nil
+
+        if isFatal {
+            logger.info("Fatal close code \(closeCode.rawValue) — clearing tokens")
+            await updateState(.disconnected)
+            onFatalClose()
+            return
+        }
 
         reconnectAttempt += 1
         let attempt = reconnectAttempt
