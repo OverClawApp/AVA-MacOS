@@ -198,7 +198,7 @@ actor WebSocketClient {
         socket = nil
 
         if isFatal {
-            logger.info("Fatal close code \(closeCode.rawValue) — clearing tokens")
+            logger.info("Fatal close code \(rawCode) — clearing tokens")
             await updateState(.disconnected)
             onFatalClose()
             return
