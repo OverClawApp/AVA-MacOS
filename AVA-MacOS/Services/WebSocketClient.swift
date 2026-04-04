@@ -189,8 +189,8 @@ actor WebSocketClient {
         guard !isIntentionalDisconnect else { return }
 
         // Check for fatal close codes (auth expired or unpaired)
-        let closeCode = socket?.closeCode ?? .invalid
-        let isFatal = closeCode == .init(rawValue: 4001) || closeCode == .init(rawValue: 4003)
+        let rawCode = socket?.closeCode.rawValue ?? 0
+        let isFatal = rawCode == 4001 || rawCode == 4003
 
         pingTask?.cancel()
         receiveTask?.cancel()
