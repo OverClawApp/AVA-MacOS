@@ -62,10 +62,8 @@ actor WebSocketClient {
         isIntentionalDisconnect = false
         await updateState(.connecting)
 
-        // Refresh token if reconnecting (may have expired during disconnect)
-        if reconnectAttempt > 0 {
-            _ = await authStore.refreshAccessToken()
-        }
+        // Always refresh token before connecting — it may have expired overnight
+        _ = await authStore.refreshAccessToken()
 
         guard let token = await authStore.accessToken else {
             logger.error("No access token — cannot connect")
