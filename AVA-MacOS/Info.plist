@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>AVA Desktop</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright 2026 OverClaw. All rights reserved.</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>AVA needs screen capture to take screenshots for your AI agents.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>AVA uses AppleScript to control apps on your behalf.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>AVA needs microphone access for voice commands.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>AVA uses the camera when your AI agents need to take photos.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>AVA accesses your location when your AI agents need location context.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>AVA accesses your location when your AI agents need location context.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>AVA accesses contacts when your AI agents need to look up people.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>AVA accesses your calendar when your AI agents manage events.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>AVA accesses reminders when your AI agents manage tasks.</string>
+</dict>
+</plist>

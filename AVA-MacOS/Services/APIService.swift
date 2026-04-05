@@ -8,7 +8,22 @@ import os
 final class APIService {
     private let logger = Logger(subsystem: Constants.bundleID, category: "API")
     private let authStore: AuthStore
-    private let decoder = JSONDecoder()
+    private let decoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let str = try container.decode(String.self)
+            // Try ISO8601 with fractional seconds
+            let f = ISO8601DateFormatter()
+            f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = f.date(from: str) { return date }
+            // Fallback without fractional
+            f.formatOptions = [.withInternetDateTime]
+            if let date = f.date(from: str) { return date }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot decode date: \(str)")
+        }
+        return d
+    }()
 
     // Cached agents
     private(set) var orchestratorId: String?
@@ -56,10 +71,29 @@ final class APIService {
 
     // MARK: - Agents (find orchestrator)
 
-    struct Agent: Decodable {
+    struct Agent: Decodable, Identifiable {
         let id: String
         let name: String
         let personality: String?
+        let officeNumber: Int?
+        let lastMessage: String?
+        let lastMessageAt: Date?
+        let unreadCount: Int?
+        let activity: String?
+        let avatarUrl: String?
+
+        var displayPersonality: String {
+            personality?.capitalized ?? "General"
+        }
+
+        var hasUnread: Bool { (unreadCount ?? 0) > 0 }
+    }
+
+    struct ChatMessage: Decodable, Identifiable {
+        let id: String
+        let role: String
+        let content: String
+        let createdAt: Date
     }
 
     struct AgentsResponse: Decodable {
@@ -81,6 +115,13 @@ final class APIService {
         } catch {
             logger.error("Failed to fetch agents: \(error)")
         }
+    }
+
+    // MARK: - Chat History
+
+    func fetchMessages(agentId: String, limit: Int = 50) async throws -> [ChatMessage] {
+        let (data, _) = try await authenticatedRequest("/agents/\(agentId)/messages?limit=\(limit)")
+        return try decoder.decode([ChatMessage].self, from: data)
     }
 
     // MARK: - Chat SSE Streaming
