@@ -132,7 +132,59 @@ final class CommandRouter {
             return try await fileWatchHandler.handle(request)
         case .automation:
             return try await automationHandler.handle(request)
+        case .batch:
+            return try await executeBatch(request)
         }
+    }
+
+    // MARK: - Batch Execution
+
+    private func executeBatch(_ request: CommandRequest) async throws -> CommandResponse {
+        guard let actionsArray = request.params?["actions"]?.arrayValue else {
+            return .failure(id: request.id, code: "MISSING_PARAM", message: "actions array is required")
+        }
+        let stopOnError = request.params?["stopOnError"]?.boolValue ?? true
+
+        var results: [JSONValue] = []
+        for (i, actionValue) in actionsArray.enumerated() {
+            guard let actionObj = actionValue.objectValue,
+                  let commandStr = actionObj["command"]?.stringValue,
+                  let command = CommandCategory(rawValue: commandStr),
+                  let action = actionObj["action"]?.stringValue else {
+                results.append(.object([
+                    "index": .int(i),
+                    "ok": .bool(false),
+                    "error": .object(["code": .string("INVALID_FORMAT"), "message": .string("Invalid action format")]),
+                ]))
+                if stopOnError { break }
+                continue
+            }
+
+            let subRequest = CommandRequest(
+                type: "req",
+                id: "\(request.id)_\(i)",
+                command: command,
+                action: action,
+                params: actionObj["params"]?.objectValue
+            )
+
+            // Each sub-command goes through its own permission check
+            let response = await execute(subRequest)
+            results.append(.object([
+                "index": .int(i),
+                "ok": .bool(response.ok),
+                "payload": response.payload.map { .object($0) } ?? .null,
+                "error": response.error.map { .object(["code": .string($0.code), "message": .string($0.message)]) } ?? .null,
+            ]))
+
+            if !response.ok && stopOnError { break }
+        }
+
+        return .success(id: request.id, payload: [
+            "results": .array(results),
+            "executed": .int(results.count),
+            "total": .int(actionsArray.count),
+        ])
     }
 
     private func logCommand(_ request: CommandRequest, success: Bool, description: String) {

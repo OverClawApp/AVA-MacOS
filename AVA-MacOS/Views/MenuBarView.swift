@@ -567,6 +567,7 @@ struct MenuBarView: View {
         case .systemControl: return "Controls"
         case .watch: return "File Watch"
         case .automation: return "Automation"
+        case .batch: return "Batch"
         }
     }
 }

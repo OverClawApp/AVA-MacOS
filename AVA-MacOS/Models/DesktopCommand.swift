@@ -168,6 +168,7 @@ enum CommandCategory: String, Codable, CaseIterable {
     case systemControl = "desktop_system_control"
     case watch = "desktop_watch"
     case automation = "desktop_automation"
+    case batch = "desktop_batch"
 
     var displayName: String {
         switch self {
@@ -197,6 +198,7 @@ enum CommandCategory: String, Codable, CaseIterable {
         case .systemControl: return "System Control"
         case .watch: return "File Watcher"
         case .automation: return "Automation"
+        case .batch: return "Batch"
         }
     }
 
@@ -228,6 +230,7 @@ enum CommandCategory: String, Codable, CaseIterable {
         case .systemControl: return "slider.horizontal.3"
         case .watch: return "eye.trianglebadge.exclamationmark"
         case .automation: return "play.rectangle"
+        case .batch: return "list.bullet.rectangle"
         }
     }
 
@@ -238,7 +241,7 @@ enum CommandCategory: String, Codable, CaseIterable {
         case .file, .app, .codebase, .window, .recording: return .medium
         case .terminal, .applescript, .input, .codeReview, .accessibility, .browser, .process, .vision: return .high
         case .camera, .location, .pim, .mcp, .cliGen, .watch: return .medium
-        case .systemControl, .automation: return .high
+        case .systemControl, .automation, .batch: return .high
         }
     }
 }

@@ -83,10 +83,11 @@ struct AutomationHandler {
         ])
     }
 
-    // MARK: - Observe (screenshot + return for analysis)
+    // MARK: - Observe (screenshot + AX tree + app context)
 
     private func observe(id: String, params: [String: JSONValue]) async throws -> CommandResponse {
         let sessionId = params["sessionId"]?.stringValue
+        let includeTree = params["includeTree"]?.boolValue ?? true
 
         // Take screenshot
         guard CGPreflightScreenCaptureAccess() else {
@@ -113,14 +114,91 @@ struct AutomationHandler {
         // Get frontmost app info
         let frontApp = NSWorkspace.shared.frontmostApplication
         let appName = frontApp?.localizedName ?? "Unknown"
+        let bundleId = frontApp?.bundleIdentifier ?? ""
+        let pid = frontApp?.processIdentifier ?? 0
 
-        // Get mouse position
+        // Get mouse position (convert to top-left origin)
         let mousePos = NSEvent.mouseLocation
+        let screenHeight = NSScreen.main?.frame.height ?? 0
+        let mouseY = Int(screenHeight - mousePos.y)
+
+        // Get window title via AX
+        var windowTitle = ""
+        if let frontApp {
+            let appElement = AXUIElementCreateApplication(frontApp.processIdentifier)
+            var windowRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(appElement, kAXMainWindowAttribute as CFString, &windowRef) == .success,
+               let window = windowRef {
+                let axHandler = AccessibilityHandler()
+                windowTitle = axHandler.getStringAttribute(window as! AXUIElement, kAXTitleAttribute) ?? ""
+            }
+        }
+
+        // Build base payload
+        var payload: [String: JSONValue] = [
+            "screenshot": .string(base64),
+            "encoding": .string("base64"),
+            "format": .string("png"),
+            "frontApp": .object([
+                "name": .string(appName),
+                "bundleId": .string(bundleId),
+                "pid": .int(Int(pid)),
+            ]),
+            "windowTitle": .string(windowTitle),
+            "mouseX": .int(Int(mousePos.x)),
+            "mouseY": .int(mouseY),
+            "size": .int(imageData.count),
+        ]
+
+        // Build accessibility indexed tree if requested
+        if includeTree, let frontApp {
+            let appElement = AXUIElementCreateApplication(frontApp.processIdentifier)
+            let axHandler = AccessibilityHandler()
+
+            // Auto-compact after 5 steps in a session to reduce payload size
+            let session = sessionId.flatMap { Self.activeSessions[$0] }
+            let autoCompact = (session?.steps.count ?? 0) > 5
+            let compact = params["compact"]?.boolValue ?? autoCompact
+
+            let treeResult = axHandler.buildIndexedTree(
+                element: appElement,
+                maxDepth: 5,
+                compact: compact
+            )
+
+            // Populate the shared cache
+            IndexedElementCache.clear()
+            for elem in treeResult.interactive {
+                IndexedElementCache.elements[elem.index] = elem
+            }
+            IndexedElementCache.timestamp = Date()
+            IndexedElementCache.appPid = frontApp.processIdentifier
+
+            let interactiveJSON: [JSONValue] = treeResult.interactive.map { elem in
+                var obj: [String: JSONValue] = [
+                    "index": .int(elem.index),
+                    "role": .string(elem.role),
+                    "title": .string(elem.title),
+                    "actions": .array(elem.actions.map { .string($0) }),
+                    "path": .string(elem.path),
+                ]
+                if !compact {
+                    obj["x"] = .int(Int(elem.position.x))
+                    obj["y"] = .int(Int(elem.position.y))
+                    obj["width"] = .int(Int(elem.size.width))
+                    obj["height"] = .int(Int(elem.size.height))
+                }
+                return .object(obj)
+            }
+
+            payload["interactiveElements"] = .array(interactiveJSON)
+            payload["elementCount"] = .int(treeResult.interactive.count + treeResult.context.count)
+        }
 
         // Record step if in a session
         if let sessionId, var session = Self.activeSessions[sessionId] {
             let step = AutomationStep(
-                screenshot: nil, // Don't store full images in memory
+                screenshot: nil,
                 observation: "Screenshot taken — \(appName) active",
                 action: "observe",
                 result: "Ready for analysis",
@@ -128,34 +206,18 @@ struct AutomationHandler {
             )
             session.steps.append(step)
 
-            // Check step limit
+            payload["stepNumber"] = .int(session.steps.count)
+            payload["maxSteps"] = .int(session.maxSteps)
+
             if session.steps.count >= session.maxSteps {
                 session.status = "max_steps_reached"
-                Self.activeSessions[sessionId] = session
-                return .success(id: id, payload: [
-                    "screenshot": .string(base64),
-                    "encoding": .string("base64"),
-                    "frontApp": .string(appName),
-                    "mouseX": .int(Int(mousePos.x)),
-                    "mouseY": .int(Int(mousePos.y)),
-                    "stepNumber": .int(session.steps.count),
-                    "maxSteps": .int(session.maxSteps),
-                    "warning": .string("Maximum steps reached. Call 'complete' or 'fail'."),
-                ])
+                payload["warning"] = .string("Maximum steps reached. Call 'complete' or 'fail'.")
             }
 
             Self.activeSessions[sessionId] = session
         }
 
-        return .success(id: id, payload: [
-            "screenshot": .string(base64),
-            "encoding": .string("base64"),
-            "format": .string("png"),
-            "frontApp": .string(appName),
-            "mouseX": .int(Int(mousePos.x)),
-            "mouseY": .int(Int(NSScreen.main!.frame.height - mousePos.y)), // Convert to top-left origin
-            "size": .int(imageData.count),
-        ])
+        return .success(id: id, payload: payload)
     }
 
     // MARK: - Execute Step (record an action taken)

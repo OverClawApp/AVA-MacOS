@@ -165,6 +165,9 @@ final class PermissionManager {
             let script = params["script"]?.stringValue ?? ""
             let preview = String(script.prefix(80))
             return "Run AppleScript: \(preview)\(script.count > 80 ? "..." : "")"
+        case (.batch, _):
+            let count = params["actions"]?.arrayValue?.count ?? 0
+            return "Execute \(count) commands in batch"
         default:
             return "\(command.command.displayName): \(command.action)"
         }
